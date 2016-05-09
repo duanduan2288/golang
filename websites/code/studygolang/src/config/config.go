@@ -35,9 +35,9 @@ func init() {
 		ROOT, _ = os.Getwd()
 		ROOT = ROOT[:strings.Index(ROOT, "src")]
 	}
-
+	ROOT = ROOT + "src/studygolang/websites/code/studygolang/"
 	// Load配置文件
-	configFile := ROOT + "/studygolang/websites/code/studygolang/conf/config.json"
+	configFile := ROOT + "conf/config.json"
 	content, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		panic(err)
