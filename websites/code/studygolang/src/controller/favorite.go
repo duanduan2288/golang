@@ -12,10 +12,11 @@ import (
 	"strconv"
 
 	"filter"
-	"github.com/studygolang/mux"
 	"model"
 	"service"
 	"util"
+
+	"github.com/studygolang/mux"
 )
 
 // 收藏(取消收藏)
@@ -30,8 +31,8 @@ func FavoriteHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	var err error
-
 	objtype := util.MustInt(req.PostFormValue("objtype"))
+
 	collect := util.MustInt(req.PostFormValue("collect"))
 	if collect == 1 {
 		err = service.SaveFavorite(user["uid"].(int), util.MustInt(vars["objid"]), objtype)

@@ -281,3 +281,13 @@ func ModifyComment(cid, content string) (errMsg string, err error) {
 
 	return
 }
+
+func DelComment(cid string, flag int) (errMsg string, err error) {
+	err = model.NewComment().Set("flag=?", flag).Where("cid=" + cid).Update()
+	if err != nil {
+		logger.Errorf("删除评论内容失败：%s\n", err)
+		errMsg = "对不起，服务器内部错误，请稍后重试"
+		return
+	}
+	return
+}

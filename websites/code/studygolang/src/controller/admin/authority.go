@@ -19,22 +19,20 @@ import (
 func AuthListHandler(rw http.ResponseWriter, req *http.Request) {
 
 	curPage, limit := parsePage(req)
-
 	total := len(service.Authorities)
-	newLimit := limit
-	if total < limit {
-		newLimit = total
+
+	if total == 0 {
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	data := map[string]interface{}{
-		"datalist":   service.Authorities[(curPage - 1):newLimit],
+		"datalist":   service.Authorities[(curPage-1)*limit : curPage*limit],
 		"total":      total,
 		"totalPages": (total + limit - 1) / limit,
 		"page":       curPage,
 		"limit":      limit,
 	}
-
-	// 设置内容模板
 	req.Form.Set(filter.CONTENT_TPL_KEY, "/template/admin/authority/list.html,/template/admin/authority/query.html")
 	filter.SetData(req, data)
 }
@@ -72,19 +70,18 @@ func NewAuthorityHandler(rw http.ResponseWriter, req *http.Request) {
 		user, _ := filter.CurrentUser(req)
 		username := user["username"].(string)
 
-		errMsg, err := service.SaveAuthority(req.PostForm, username)
+		errmsg, err := service.SaveAuthority(req.PostForm, username)
 		if err != nil {
 			data["ok"] = 0
-			data["error"] = errMsg
+			data["error"] = errmsg
 		} else {
 			data["ok"] = 1
-			data["msg"] = "添加成功"
+			data["error"] = "添加成功"
 		}
+
 	} else {
 		menu1, menu2 := service.GetMenus()
 		allmenu2, _ := json.Marshal(menu2)
-
-		// 设置内容模板
 		req.Form.Set(filter.CONTENT_TPL_KEY, "/template/admin/authority/new.html")
 		data["allmenu1"] = menu1
 		data["allmenu2"] = string(allmenu2)
@@ -95,32 +92,32 @@ func NewAuthorityHandler(rw http.ResponseWriter, req *http.Request) {
 
 func ModifyAuthorityHandler(rw http.ResponseWriter, req *http.Request) {
 	var data = make(map[string]interface{})
-
 	if req.PostFormValue("submit") == "1" {
 		user, _ := filter.CurrentUser(req)
 		username := user["username"].(string)
-
 		errMsg, err := service.SaveAuthority(req.PostForm, username)
 		if err != nil {
 			data["ok"] = 0
 			data["error"] = errMsg
 		} else {
 			data["ok"] = 1
-			data["msg"] = "修改成功"
+			data["error"] = "修改成功"
 		}
 	} else {
-		menu1, menu2 := service.GetMenus()
-		allmenu2, _ := json.Marshal(menu2)
-
-		authority := service.FindAuthority(req.FormValue("aid"))
-
-		if authority == nil || authority.Aid == 0 {
+		aid := req.FormValue("aid")
+		if aid == "" {
 			rw.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		// 设置内容模板
-		req.Form.Set(filter.CONTENT_TPL_KEY, "/template/admin/authority/modify.html")
+		authority := service.FindAuthority(aid)
+		if authority == nil {
+			rw.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		menu1, menu2 := service.GetMenus()
+		allmenu2, _ := json.Marshal(menu2)
+		req.Form.Set(filter.CONTENT_TPL_KEY, "/template/admin/authority/new.html")
 		data["allmenu1"] = menu1
 		data["allmenu2"] = string(allmenu2)
 		data["authority"] = authority
@@ -131,7 +128,6 @@ func ModifyAuthorityHandler(rw http.ResponseWriter, req *http.Request) {
 
 func DelAuthorityHandler(rw http.ResponseWriter, req *http.Request) {
 	var data = make(map[string]interface{})
-
 	aid := req.FormValue("aid")
 
 	if _, err := strconv.Atoi(aid); err != nil {

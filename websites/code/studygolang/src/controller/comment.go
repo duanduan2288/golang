@@ -13,38 +13,37 @@ import (
 	"strconv"
 
 	"filter"
-	"github.com/studygolang/mux"
 	"logger"
 	"service"
 	"util"
+
+	"github.com/studygolang/mux"
 )
 
 // 评论（或回复）
 // uri: /comment/{objid:[0-9]+}.json
 func CommentHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
-	user, _ := filter.CurrentUser(req)
+	objid := vars["objid"]
 
-	if !util.CheckInt(req.PostForm, "objtype") {
-		fmt.Fprint(rw, `{"errno": 1, "error":"参数错误"}`)
+	user, ok := filter.CurrentUser(req)
+	if !ok {
+		fmt.Fprint(rw, `{"errno":1,"error":"用户没有登录"}`)
 		return
 	}
-
-	// 入库
-	comment, err := service.PostComment(user["uid"].(int), util.MustInt(vars["objid"]), req.PostForm)
-	if err != nil {
-		fmt.Fprint(rw, `{"errno": 1, "error":"服务器内部错误"}`)
+	uid := user["uid"].(int)
+	comment, err := service.PostComment(uid, util.MustInt(objid), req.Form)
+	if nil != err {
+		fmt.Fprint(rw, `{"errno":1,"error":`+err.Error()+`}`)
 		return
 	}
-
 	buf, err := json.Marshal(comment)
 	if err != nil {
-		logger.Errorln("[RecentCommentHandler] json.marshal error:", err)
-		fmt.Fprint(rw, `{"errno": 1, "error":"解析json出错"}`)
+		fmt.Fprint(rw, `{"errno":1,"error":"数据错误"}`)
 		return
 	}
+	fmt.Fprint(rw, `{"errno":0,"data":`+string(buf)+`}`)
 
-	fmt.Fprint(rw, `{"errno": 0, "error":"", "data":`+string(buf)+`}`)
 }
 
 // 获取某对象的评论信息

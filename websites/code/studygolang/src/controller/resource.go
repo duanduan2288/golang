@@ -54,23 +54,21 @@ func CatResourcesHandler(rw http.ResponseWriter, req *http.Request) {
 // uri: /resources/{id:[0-9]+}
 func ResourceDetailHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
-	resource, comments := service.FindResource(vars["id"])
+	id := vars["id"]
+	resource, comments := service.FindResource(id)
 
 	if len(resource) == 0 {
-		util.Redirect(rw, req, "/resources")
+		util.Redirect(rw, req, "/resource")
 		return
 	}
 
-	likeFlag := 0
-	hadCollect := 0
 	user, ok := filter.CurrentUser(req)
-	if ok {
-		uid := user["uid"].(int)
-		id := resource["id"].(int)
-		likeFlag = service.HadLike(uid, id, model.TYPE_RESOURCE)
-		hadCollect = service.HadFavorite(uid, id, model.TYPE_RESOURCE)
-	}
 
+	var likeFlag, hadCollect int
+	if !ok {
+		likeFlag = service.HadLike(user["uid"].(int), util.MustInt(id), model.TYPE_RESOURCE)
+		hadCollect = service.HadFavorite(user["uid"].(int), util.MustInt(id), model.TYPE_RESOURCE)
+	}
 	service.Views.Incr(req, model.TYPE_RESOURCE, util.MustInt(vars["id"]))
 
 	req.Form.Set(filter.CONTENT_TPL_KEY, "/template/resources/detail.html,/template/common/comment.html")
@@ -81,67 +79,38 @@ func ResourceDetailHandler(rw http.ResponseWriter, req *http.Request) {
 // uri: /resources/new{json:(|.json)}
 func NewResourceHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
-	title := req.PostFormValue("title")
-	// 请求新建资源页面
-	if title == "" || req.Method != "POST" || vars["json"] == "" {
+
+	if vars["json"] == "" || req.Method != "POST" {
+		resource := model.NewResource()
+		filter.SetData(req, map[string]interface{}{"resource": resource, "categories": service.AllCategory})
 		req.Form.Set(filter.CONTENT_TPL_KEY, "/template/resources/new.html")
-		filter.SetData(req, map[string]interface{}{"activeResources": "active", "categories": service.AllCategory})
 		return
 	}
-
-	errMsg := ""
-	resForm := req.PostFormValue("form")
-	if resForm == model.LinkForm {
-		if req.PostFormValue("url") == "" {
-			errMsg = "url不能为空"
-		}
-	} else {
-		if req.PostFormValue("content") == "" {
-			errMsg = "内容不能为空"
-		}
-	}
-	if errMsg != "" {
-		fmt.Fprint(rw, `{"ok": 0, "error":"`+errMsg+`"}`)
-		return
-	}
-
 	user, _ := filter.CurrentUser(req)
 	err := service.PublishResource(user, req.PostForm)
-	if err != nil {
-		fmt.Fprint(rw, `{"ok": 0, "error":"内部服务错误，请稍候再试！"}`)
+	if nil != err {
+		fmt.Fprint(rw, `{"errno":0,"error":`+err.Error()+`}`)
 		return
 	}
-
-	fmt.Fprint(rw, `{"ok": 1, "data":""}`)
+	fmt.Fprint(rw, `{"errno":1,"error":"发布资源成功"}`)
 }
 
 // 修改資源
 // uri: /resources/modify{json:(|.json)}
 func ModifyResourceHandler(rw http.ResponseWriter, req *http.Request) {
 	id := req.FormValue("id")
-	if id == "" {
-		util.Redirect(rw, req, "/resources")
-		return
-	}
-
 	vars := mux.Vars(req)
-	// 请求编辑資源页面
-	if req.Method != "POST" || vars["json"] == "" {
+	if vars["json"] == "" || req.Method != "POST" {
 		resource := service.FindResourceById(id)
+		filter.SetData(req, map[string]interface{}{"resource": resource, "categories": service.AllCategory})
 		req.Form.Set(filter.CONTENT_TPL_KEY, "/template/resources/new.html")
-		filter.SetData(req, map[string]interface{}{"resource": resource, "activeResources": "active", "categories": service.AllCategory})
 		return
 	}
-
 	user, _ := filter.CurrentUser(req)
 	err := service.PublishResource(user, req.PostForm)
-	if err != nil {
-		if err == service.NotModifyAuthorityErr {
-			rw.WriteHeader(http.StatusForbidden)
-			return
-		}
-		fmt.Fprint(rw, `{"ok": 0, "error":"内部服务错误！"}`)
+	if nil != err {
+		fmt.Fprint(rw, `{"errno":0,"error":`+err.Error()+`}`)
 		return
 	}
-	fmt.Fprint(rw, `{"ok": 1, "data":""}`)
+	fmt.Fprint(rw, `{"errno":1,"error":"更新资源成功"}`)
 }

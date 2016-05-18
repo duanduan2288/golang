@@ -41,8 +41,17 @@ func UserHomeHandler(rw http.ResponseWriter, req *http.Request) {
 
 	projects := service.FindUserRecentProjects(user.Username)
 	comments := service.FindRecentComments(user.Uid, -1, "5")
+
+	//如果不是本人，查看用户是否已关注
+	var IsSubscribe bool
+
+	curuser, _ := filter.CurrentUser(req)
+	if curuser["username"].(string) != username {
+		IsSubscribe = service.IsFans(curuser["uid"].(int), user.Uid)
+	}
+
 	// 设置模板数据
-	filter.SetData(req, map[string]interface{}{"activeUsers": "active", "topics": topics, "resources": resources, "resource_cats": resourceCats, "projects": projects, "comments": comments, "user": user})
+	filter.SetData(req, map[string]interface{}{"activeUsers": "active", "topics": topics, "resources": resources, "resource_cats": resourceCats, "projects": projects, "comments": comments, "user": user, "IsSubscribe": IsSubscribe})
 	req.Form.Set(filter.CONTENT_TPL_KEY, "/template/user/profile.html")
 }
 

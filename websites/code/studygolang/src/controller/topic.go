@@ -13,10 +13,11 @@ import (
 	"strconv"
 
 	"filter"
-	"github.com/studygolang/mux"
 	"model"
 	"service"
 	"util"
+
+	"github.com/studygolang/mux"
 )
 
 // 在需要评论（喜欢）且要回调的地方注册评论（喜欢）对象
@@ -63,10 +64,12 @@ func NodesHandler(rw http.ResponseWriter, req *http.Request) {
 		page = 1
 	}
 	vars := mux.Vars(req)
-	topics, total := service.FindTopics(page, 0, "nid="+vars["nid"])
-	pageHtml := service.GetPageHtml(page, total, "/topics/node"+vars["nid"])
-	// 当前节点信息
-	node := service.GetNode(util.MustInt(vars["nid"]))
+	nid := vars["nid"]
+	topics, total := service.FindTopics(page, 0, "nid="+nid)
+	pageHtml := service.GetPageHtml(page, total, req.URL.Path)
+
+	//获取当前节点的信息
+	node := service.GetNode(util.MustInt(nid))
 	req.Form.Set(filter.CONTENT_TPL_KEY, "/template/topics/node.html")
 	// 设置模板数据
 	filter.SetData(req, map[string]interface{}{"activeTopics": "active", "topics": topics, "page": template.HTML(pageHtml), "total": total, "node": node})
@@ -76,13 +79,11 @@ func NodesHandler(rw http.ResponseWriter, req *http.Request) {
 // uri: /topics/{tid:[0-9]+}
 func TopicDetailHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
-
 	topic, replies, err := service.FindTopicByTid(vars["tid"])
 	if err != nil {
 		util.Redirect(rw, req, "/topics")
 		return
 	}
-
 	likeFlag := 0
 	hadCollect := 0
 	user, ok := filter.CurrentUser(req)
@@ -104,24 +105,21 @@ func TopicDetailHandler(rw http.ResponseWriter, req *http.Request) {
 // 新建帖子
 // uri: /topics/new{json:(|.json)}
 func NewTopicHandler(rw http.ResponseWriter, req *http.Request) {
+
 	nodes := service.GenNodes()
 	vars := mux.Vars(req)
-	title := req.PostFormValue("title")
-	// 请求新建主题页面
-	if title == "" || req.Method != "POST" || vars["json"] == "" {
+	if req.Method != "POST" || vars["json"] == "" {
+		filter.SetData(req, map[string]interface{}{"nodes": nodes})
 		req.Form.Set(filter.CONTENT_TPL_KEY, "/template/topics/new.html")
-		filter.SetData(req, map[string]interface{}{"nodes": nodes, "activeTopics": "active"})
 		return
 	}
-
 	user, _ := filter.CurrentUser(req)
-	err := service.PublishTopic(user, req.PostForm)
+	err := service.PublishTopic(user, req.Form)
 	if err != nil {
-		fmt.Fprint(rw, `{"ok": 0, "error":"内部服务错误！"}`)
+		fmt.Fprint(rw, `{"ok":0,"error":`+err.Error()+`}`)
 		return
 	}
-
-	fmt.Fprint(rw, `{"ok": 1, "data":""}`)
+	fmt.Fprint(rw, `{"ok":1,"msg":"发布成功"}`)
 }
 
 // 修改主题

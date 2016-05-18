@@ -10,6 +10,7 @@ import (
 	"filter"
 	"net/http"
 	"service"
+	"strconv"
 )
 
 // 修改评论（只允许后台管理员修改评论内容）
@@ -30,4 +31,21 @@ func ModifyCommentHandler(rw http.ResponseWriter, req *http.Request) {
 
 // 删除评论
 func DelCommentHandler(rw http.ResponseWriter, req *http.Request) {
+	var data = make(map[string]interface{})
+	cid := req.FormValue("cid")
+
+	if _, err := strconv.Atoi(cid); err != nil {
+		data["ok"] = 0
+		data["error"] = "不是整数"
+	} else {
+		errMsg, err := service.DelComment(cid, 2)
+		if err != nil {
+			data["ok"] = 0
+			data["error"] = errMsg
+		} else {
+			data["ok"] = 1
+			data["error"] = "删除成功"
+		}
+	}
+	filter.SetData(req, data)
 }

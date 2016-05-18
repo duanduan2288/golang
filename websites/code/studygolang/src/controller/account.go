@@ -35,27 +35,22 @@ func RegisterHandler(rw http.ResponseWriter, req *http.Request) {
 
 	username := req.PostFormValue("username")
 	req.Form.Set(filter.CONTENT_TPL_KEY, "/template/register.html")
-	// 请求注册页面
+	//请求注册页面
 	if username == "" || req.Method != "POST" {
 		filter.SetData(req, map[string]interface{}{"captchaId": captcha.NewLen(4)})
 		return
 	}
-
-	// 校验验证码
+	//校验验证码
 	if !captcha.VerifyString(req.PostFormValue("captchaid"), req.PostFormValue("captchaSolution")) {
-		// fmt.Fprint(rw, `{"ok": 0, "error":"验证码错误"}`)
 		filter.SetData(req, map[string]interface{}{"error": "验证码错误", "captchaId": captcha.NewLen(4)})
 		return
 	}
-
-	// 入库
+	//入库
 	errMsg, err := service.CreateUser(req.PostForm)
 	if err != nil {
-		// bugfix：http://studygolang.com/topics/255
 		if errMsg == "" {
 			errMsg = err.Error()
 		}
-		// fmt.Fprint(rw, `{"ok": 0, "error":"`, errMsg, `"}`)
 		filter.SetData(req, map[string]interface{}{"error": errMsg})
 		return
 	}
@@ -81,18 +76,15 @@ func RegisterHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 	data := map[string]interface{}{
 		"success": template.HTML(`
-			<div style="padding:30px 30px 50px 30px;">
- 				<div style="color:#339502;font-size:22px;line-height: 2.5;">恭喜您注册成功！</div>
- 				我们已经发送一封邮件到 ` + email + `，请您根据提示信息完成邮箱验证.<br><br>
- 				<a href="` + emailUrl + `" target="_blank"><button type="button" class="btn btn-success">立即验证</button></a>&nbsp;&nbsp;<button type="button" class="btn btn-link" data-uuid="` + uuid + `" id="resend_email">未收到？再发一次</button>
-			</div>`),
+				<div style="padding:30px 30px 50px 30px;">
+	 				<div style="color:#339502;font-size:22px;line-height: 2.5;">恭喜您注册成功！</div>
+	 				我们已经发送一封邮件到 ` + email + `，请您根据提示信息完成邮箱验证.<br><br>
+	 				<a href="` + emailUrl + `" target="_blank"><button type="button" class="btn btn-success">立即验证</button></a>&nbsp;&nbsp;<button type="button" class="btn btn-link" data-uuid="` + uuid + `" id="resend_email">未收到？再发一次</button>
+				</div>`),
 	}
-	// 需要检验邮箱的正确性
 	go sendActivateMail(email, uuid)
-
 	filter.SetData(req, data)
 
-	// fmt.Fprint(rw, `{"ok": 1, "msg":"注册成功"}`)
 }
 
 // 发送激活邮件
@@ -107,7 +99,7 @@ func SendActivateEmailHandler(rw http.ResponseWriter, req *http.Request) {
 
 	go sendActivateMail(email, uuid)
 
-	fmt.Fprint(rw, `{"ok": 1, "msg":"已发送"}`)
+	fmt.Fprint(rw, `{"ok":1,"msg":"已发送"}`)
 }
 
 // ActivateHandler 激活用户
@@ -136,7 +128,6 @@ func ActivateHandler(rw http.ResponseWriter, req *http.Request) {
 
 	if timestamp < time.Now().Add(-4*time.Hour).Unix() {
 		delete(regActivateCodeMap, uuid)
-		// TODO:可以再次发激活邮件？
 		data["error"] = "链接已过期"
 		filter.SetData(req, data)
 		return
@@ -144,7 +135,7 @@ func ActivateHandler(rw http.ResponseWriter, req *http.Request) {
 
 	realSign := genSign(email, uuid, timestamp)
 	if sign != realSign {
-		data["error"] = "签名非法！"
+		data["error"] = "签名非法"
 		filter.SetData(req, data)
 		return
 	}
@@ -164,7 +155,7 @@ func ActivateHandler(rw http.ResponseWriter, req *http.Request) {
 
 	delete(regActivateCodeMap, uuid)
 
-	// 自动登录
+	//自动登录
 	setCookie(rw, req, user.Username)
 
 	filter.SetData(req, data)
@@ -224,14 +215,14 @@ func LoginHandler(rw http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		if suffix != "" {
 			logger.Errorln("login error:", err)
-			fmt.Fprint(rw, `{"ok":0,"error":"`+err.Error()+`"}`)
+			fmt.Fprint(rw, `{"ok":0,"error":`+err.Error()+`}`)
 			return
 		}
-
-		req.Form.Set(filter.CONTENT_TPL_KEY, "/template/login.html")
 		filter.SetData(req, map[string]interface{}{"username": username, "error": err.Error()})
+		req.Form.Set(filter.CONTENT_TPL_KEY, "/template/login.html")
 		return
 	}
+
 	logger.Debugf("remember_me is %q\n", req.FormValue("remember_me"))
 	// 登录成功，种cookie
 	setCookie(rw, req, userLogin.Username)
@@ -255,10 +246,11 @@ func LoginHandler(rw http.ResponseWriter, req *http.Request) {
 func AccountEditHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	curUser, _ := filter.CurrentUser(req)
+
 	if req.Method != "POST" || vars["json"] == "" {
-		// 获取用户信息
+		//获取用户信息
 		user := service.FindUserByUsername(curUser["username"].(string))
-		// 设置模板数据
+		//设置模板数据
 		filter.SetData(req, map[string]interface{}{"user": user, "default_avatars": service.DefaultAvatars})
 		req.Form.Set(filter.CONTENT_TPL_KEY, "/template/user/edit.html")
 		return
@@ -269,8 +261,7 @@ func AccountEditHandler(rw http.ResponseWriter, req *http.Request) {
 	if req.PostFormValue("open") != "1" {
 		req.PostForm.Set("open", "0")
 	}
-
-	// 更新个人信息
+	//更新用户信息
 	errMsg, err := service.UpdateUser(req.PostForm)
 	if err != nil {
 		fmt.Fprint(rw, `{"ok": 0, "error":"`, errMsg, `"}`)
@@ -336,7 +327,6 @@ func ForgetPasswdHandler(rw http.ResponseWriter, req *http.Request) {
 		filter.SetData(req, data)
 		return
 	}
-	// 校验email是否存在
 	if service.EmailExists(email) {
 		var uuid string
 		for {
@@ -345,7 +335,6 @@ func ForgetPasswdHandler(rw http.ResponseWriter, req *http.Request) {
 				resetPwdMap[uuid] = email
 				break
 			}
-			logger.Infoln("GenUUID 冲突....")
 		}
 		var emailUrl string
 		if strings.HasSuffix(email, "@gmail.com") {
@@ -357,7 +346,7 @@ func ForgetPasswdHandler(rw http.ResponseWriter, req *http.Request) {
 		data["success"] = template.HTML(`一封包含了重设密码链接的邮件已经发送到您的注册邮箱，按照邮件中的提示，即可重设您的密码。<a href="` + emailUrl + `" target="_blank">立即前往邮箱</a>`)
 		go sendResetpwdMail(email, uuid)
 	} else {
-		data["error"] = "该邮箱没有在本社区注册过！"
+		data["error"] = "未在本社区注册"
 	}
 	filter.SetData(req, data)
 }

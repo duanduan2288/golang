@@ -24,8 +24,8 @@ func ArticleListHandler(rw http.ResponseWriter, req *http.Request) {
 
 	articles, total := service.FindArticleByPage(nil, curPage, limit)
 
-	if articles == nil {
-		logger.Errorln("[ArticleListHandler]sql find error")
+	if nil == articles {
+		logger.Errorln("[ArticleQueryHandler]sql find error")
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -37,8 +37,6 @@ func ArticleListHandler(rw http.ResponseWriter, req *http.Request) {
 		"page":       curPage,
 		"limit":      limit,
 	}
-
-	// 设置内容模板
 	req.Form.Set(filter.CONTENT_TPL_KEY, "/template/admin/article/list.html,/template/admin/article/query.html")
 	filter.SetData(req, data)
 }

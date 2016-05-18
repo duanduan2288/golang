@@ -12,10 +12,11 @@ import (
 	"strconv"
 
 	"filter"
-	"github.com/studygolang/mux"
 	"model"
 	"service"
 	"util"
+
+	"github.com/studygolang/mux"
 )
 
 // 在需要评论（喜欢）且要回调的地方注册评论（喜欢）对象
@@ -28,61 +29,56 @@ func init() {
 // 开源项目列表页
 // uri: /projects
 func ProjectsHandler(rw http.ResponseWriter, req *http.Request) {
-	limit := 20
 
 	lastId := req.FormValue("lastid")
 	if lastId == "" {
 		lastId = "0"
 	}
-
+	limit := 20
 	projects := service.FindProjects(lastId, "25")
-	if projects == nil {
-		// TODO:服务暂时不可用？
-	}
 
 	num := len(projects)
+
 	if num == 0 {
 		if lastId == "0" {
 			util.Redirect(rw, req, "/")
+			return
 		} else {
 			util.Redirect(rw, req, "/projects")
+			return
 		}
-
-		return
 	}
 
+	//上一页下一页
 	var (
-		hasPrev, hasNext bool
-		prevId, nextId   int
+		prevId, nextId     int
+		has_prev, has_next bool
 	)
-
 	if lastId != "0" {
-		prevId, _ = strconv.Atoi(lastId)
+		prevId, _ := strconv.Atoi(lastId)
 
-		// 避免因为项目下线，导致判断错误（所以 > 5）
 		if prevId-projects[0].Id > 5 {
-			hasPrev = false
+			has_prev = false
 		} else {
 			prevId += limit
-			hasPrev = true
+			has_prev = true
 		}
 	}
 
-	if num > limit {
-		hasNext = true
+	if num < limit {
+		nextId = projects[num-1].Id
+	} else {
 		projects = projects[:limit]
 		nextId = projects[limit-1].Id
-	} else {
-		nextId = projects[num-1].Id
+		has_next = true
 	}
 
 	pageInfo := map[string]interface{}{
-		"has_prev": hasPrev,
+		"has_next": has_next,
+		"has_prev": has_prev,
 		"prev_id":  prevId,
-		"has_next": hasNext,
 		"next_id":  nextId,
 	}
-
 	// 获取当前用户喜欢对象信息
 	user, ok := filter.CurrentUser(req)
 	var likeFlags map[int]int
@@ -92,6 +88,7 @@ func ProjectsHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	req.Form.Set(filter.CONTENT_TPL_KEY, "/template/projects/list.html")
+
 	// 设置模板数据
 	filter.SetData(req, map[string]interface{}{"projects": projects, "activeProjects": "active", "page": pageInfo, "likeflags": likeFlags})
 }
@@ -100,81 +97,77 @@ func ProjectsHandler(rw http.ResponseWriter, req *http.Request) {
 // uri: /project/new{json:(|.json)}
 func NewProjectHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
-	name := req.PostFormValue("name")
-	// 请求新建项目页面
-	if name == "" || req.Method != "POST" || vars["json"] == "" {
+	name := req.FormValue("name")
+
+	if vars["json"] == "" || name == "" || req.Method != "POST" {
 		project := model.NewOpenProject()
+		filter.SetData(req, map[string]interface{}{"project": project})
 		req.Form.Set(filter.CONTENT_TPL_KEY, "/template/projects/new.html")
-		filter.SetData(req, map[string]interface{}{"project": project, "activeProjects": "active"})
+		return
+	}
+	user, _ := filter.CurrentUser(req)
+	err := service.PublishProject(user, req.Form)
+	if err != nil {
+		fmt.Fprint(rw, `{"ok":0,"error":`+err.Error()+`}`)
 		return
 	}
 
-	user, _ := filter.CurrentUser(req)
-	err := service.PublishProject(user, req.PostForm)
-	if err != nil {
-		fmt.Fprint(rw, `{"ok": 0, "error":"内部服务错误！"}`)
-		return
-	}
-	fmt.Fprint(rw, `{"ok": 1, "data":""}`)
+	fmt.Fprint(rw, `{"ok":1,"msg":"发布成功"}`)
 }
 
 // 修改项目
 // uri: /project/modify{json:(|.json)}
 func ModifyProjectHandler(rw http.ResponseWriter, req *http.Request) {
 	id := req.FormValue("id")
+	vars := mux.Vars(req)
 	if id == "" {
 		util.Redirect(rw, req, "/projects")
 		return
 	}
 
-	vars := mux.Vars(req)
-	// 请求编辑项目页面
-	if req.Method != "POST" || vars["json"] == "" {
+	if vars["json"] == "" || req.Method != "POST" {
+
 		project := service.FindProject(id)
+
+		filter.SetData(req, map[string]interface{}{"project": project})
 		req.Form.Set(filter.CONTENT_TPL_KEY, "/template/projects/new.html")
-		filter.SetData(req, map[string]interface{}{"project": project, "activeProjects": "active"})
 		return
 	}
 
 	user, _ := filter.CurrentUser(req)
-	err := service.PublishProject(user, req.PostForm)
+	err := service.PublishProject(user, req.Form)
 	if err != nil {
-		if err == service.NotModifyAuthorityErr {
-			rw.WriteHeader(http.StatusForbidden)
-			return
-		}
-		fmt.Fprint(rw, `{"ok": 0, "error":"内部服务错误！"}`)
+		fmt.Fprint(rw, `{"ok":0,"error":`+err.Error()+`}`)
 		return
 	}
-	fmt.Fprint(rw, `{"ok": 1, "data":""}`)
+
+	fmt.Fprint(rw, `{"ok":1,"msg":"修改成功"}`)
 }
 
 // 项目详情
 // uri: /p/{uniq}
 func ProjectDetailHandler(rw http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
-	project := service.FindProject(vars["uniq"])
+	id := vars["uniq"]
+	project := service.FindProject(id)
 	if project == nil {
 		util.Redirect(rw, req, "/projects")
-		return
 	}
-
-	likeFlag := 0
+	hadLike := 0
 	hadCollect := 0
 	user, ok := filter.CurrentUser(req)
 	if ok {
 		uid := user["uid"].(int)
-		likeFlag = service.HadLike(uid, project.Id, model.TYPE_PROJECT)
+		hadLike = service.HadLike(uid, project.Id, model.TYPE_PROJECT)
 		hadCollect = service.HadFavorite(uid, project.Id, model.TYPE_PROJECT)
 	}
 
 	service.Views.Incr(req, model.TYPE_PROJECT, project.Id)
 
-	// 为了阅读数即时看到
 	project.Viewnum++
 
+	filter.SetData(req, map[string]interface{}{"project": project, "likeflag": hadLike, "hadcollect": hadCollect})
 	req.Form.Set(filter.CONTENT_TPL_KEY, "/template/projects/detail.html,/template/common/comment.html")
-	filter.SetData(req, map[string]interface{}{"activeProjects": "active", "project": project, "likeflag": likeFlag, "hadcollect": hadCollect})
 }
 
 // 检测 uri 对应的项目是否存在(验证，true表示不存在；false表示存在)

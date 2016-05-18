@@ -170,4 +170,41 @@
 			});
 		}
 	});
+
+	//加关注
+	$(".subscribe").on("click",function(){
+		var to_user_id = $(this).data("id");
+		$.ajax({
+			type:"post",
+			dataType:"json",
+			data:{"to_user_id":to_user_id},
+			url:"/relation/subscribe.json",
+			success:function(data){
+				if(data.ok){
+					comTip("已关注");
+					//window.location.reload();
+				}else{
+					comTip("关注失败");
+				}
+			}
+		});
+	});
+	//取消关注
+	$(".unsubscribe").on("click",function(){
+		var to_user_id = $(this).data("id");
+		$.ajax({
+			type:"post",
+			dataType:"json",
+			data:{"to_user_id":to_user_id},
+			url:"/relation/unsubscribe.json",
+			success:function(data){
+				if(data.ok){
+					comTip("已取消关注");
+					//window.location.reload();
+				}else{
+					comTip("取消关注失败");
+				}
+			}
+		});
+	});
 }).call(this)
